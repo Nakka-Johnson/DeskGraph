@@ -2,11 +2,11 @@
 
 Nov 26, 2026
 
-DeskGraph is a small front-office quant platform in Python: a pricing library, versioned market data and a dependency-graph risk engine, with an AI copilot that turns sales RFQs into priced, human-approved quotes. Build it in four milestones over about eight weeks; each one is demo-able and produces real numbers for your CV.
+DeskGraph is a small front-office quant platform in Python: a pricing library, versioned market data and a dependency-graph risk engine, with an AI copilot that turns sales RFQs into priced, human-approved quotes. It is built in four milestones over about eight weeks; each one ends in a working demo and a set of measured results.
 
 ## What it is and why
 
-DeskGraph mimics an equity structured-products desk. Sales receive requests for quotes (RFQs) by chat and email, structurers price them, and traders manage the risk and the daily P&L. The project rebuilds that loop at small scale, with AI doing the routine parts and humans approving anything that leaves the desk.
+DeskGraph models an equity structured-products desk. Sales receive requests for quotes (RFQs) by chat and email, structurers price them, and traders manage the risk and the daily P&L. The project rebuilds that loop at small scale, with AI doing the routine parts and humans approving anything that leaves the desk.
 
 ### Three user stories
 
@@ -14,20 +14,19 @@ DeskGraph mimics an equity structured-products desk. Sales receive requests for 
 2. **Trader:** "What's my vega by expiry if vol drops 5 points?" The agent builds that scenario on the dependency graph and answers with numbers that came from the pricer, never from the model.
 3. **Desk head:** "Why did P&L move yesterday?" P&L explain splits the change into delta, gamma, vega and theta, and shows what is left unexplained.
 
-### What it proves for the UBS JD
+### Design principles
 
-| JD line | Where DeskGraph shows it |
+| Principle | How DeskGraph applies it |
 |---|---|
-| Quantitative models and analytics | Pricing library, SVI surface, risk engine, P&L explain |
-| Production changes to large complex systems | Typed, tested, CI-gated code with lineage on every result |
-| AI-powered systems from idea to production | RFQ copilot, MCP tools, agent harness, evals |
-| Sound judgment with AI | Number check, human approval, audit log, injection tests |
-| Partnering with Trading, Structuring and Sales | User stories built around their workflows |
-| numpy, polars, scipy; harnesses; MCP | Named directly in the stack |
+| Sound quantitative models | Pricing library, SVI surface, risk engine, P&L explain, each tested against closed forms and no-arbitrage identities |
+| Production-grade engineering | Typed, tested, CI-gated code with lineage on every result |
+| AI end to end, with guardrails | RFQ copilot, MCP tools, agent harness and evals; number check, human approval, audit log and injection tests |
+| Built around desk workflows | Every feature traces back to a Sales, Trader or Desk-head user story |
+| Standard, inspectable tooling | numpy, polars, scipy; a hand-written agent harness; MCP for tools |
 
 ### Non-goals
 
-- No price prediction, backtesting or trading strategies: that is buy-side work, not this role.
+- No price prediction, backtesting or trading strategies: DeskGraph models the sell-side pricing and risk workflow, not alpha generation.
 - No real client data: public option chains, public rates and public term sheets only.
 - One asset class (equity derivatives) and three products (European, barrier, autocallable), done properly.
 - Not low-latency or real-time trading; correctness and reproducibility come first.
@@ -85,8 +84,9 @@ deskgraph/
 ├── CLAUDE.md                  # conventions for Claude Code
 ├── pyproject.toml             # uv, ruff, mypy --strict, pytest
 ├── docs/
-│   ├── SPEC.md                # this document, exported as Markdown
+│   ├── SPEC.md                # this document
 │   └── adr/                   # one page per design decision
+├── scripts/                   # operational scripts (daily chain capture)
 ├── src/deskgraph/
 │   ├── core/                  # pure quant library: no I/O, no network
 │   │   ├── market.py          # MarketInputs, rate curve
@@ -121,16 +121,16 @@ deskgraph/
 | Testing | pytest, Hypothesis, pytest-benchmark | Unit tests, property tests for pricing laws, tracked speed |
 | API | FastAPI | OpenAPI docs for free; async jobs |
 | Storage | PostgreSQL + pgvector, Parquet | Snapshots, audit log and embeddings in one database; raw chains as files |
-| LLMs | AWS Bedrock (Claude), plus one local model via Ollama | Your existing Bedrock work; local model shows the "data can't leave" trade-off |
-| Agents | Own harness + official MCP Python SDK | The JD names harnesses and MCP; your own loop shows you understand it |
+| LLMs | AWS Bedrock (Claude), plus one local model via Ollama | Managed frontier models for the main path; a local model shows the trade-off when data can't leave the machine |
+| Agents | Own harness + official MCP Python SDK | A hand-written loop keeps control flow, retries and tracing explicit; MCP gives a standard tool interface |
 | Retrieval | rank-bm25, an embedding model, a cross-encoder reranker | Hybrid search catches exact identifiers that embeddings blur |
 | Observability | Langfuse, OpenTelemetry, JSON logs | Every LLM call and tool call traced with cost and latency |
 | Delivery | Docker Compose, Terraform (AWS ECS + RDS), GitHub Actions | Runs locally in one command; deploys like a real service |
-| Data | yfinance option chains, FRED rates, issuer KIDs and final terms | Free and public; yfinance is unofficial and delayed, fine for a portfolio project |
+| Data | yfinance option chains, FRED rates, issuer KIDs and final terms | Free and public; yfinance is unofficial and delayed, which is acceptable for a non-commercial project |
 
 ## Component specs
 
-Each component lists what to build, the design choices that matter, the tests that say it's done, and what an interviewer will ask you about it.
+Each component lists what to build, the design choices that matter, the tests that say it's done, and the design questions its ADR should answer.
 
 ### 1. Market data and snapshots
 
@@ -143,7 +143,7 @@ Each component lists what to build, the design choices that matter, the tests th
 
 **Done when:** re-pricing from a `snapshot_id` gives identical results; loader tests run on a saved fixture with no network.
 
-**Be ready to explain:** why immutable snapshots matter for audit and model validation, and how you cleaned the chain.
+**Design questions:** why immutable snapshots matter for audit and model validation, and how the chain is cleaned.
 
 ### 2. Pricing core
 
@@ -167,7 +167,7 @@ Each component lists what to build, the design choices that matter, the tests th
 - Autocallable edge cases are exact: autocall level 0 pays (1 + coupon) discounted to the first date; never called with knock-in 0 pays the discounted notional.
 - Hypothesis properties: call bounded by spot, price rising with vol, call rising and put falling with spot.
 
-**Be ready to explain:** why antithetic errors use pairs, why the control variate cuts variance, discrete versus continuous barrier monitoring, how the autocallable pays.
+**Design questions:** why antithetic errors use pairs, why the control variate cuts variance, discrete versus continuous barrier monitoring, how the autocallable pays.
 
 ### 3. Volatility surface (SVI)
 
@@ -191,7 +191,7 @@ $$
 
 **Done when:** RMSE under 0.5 vol points per expiry on liquid strikes, zero violations after the fit (or each one flagged), and a plot of fit against market for each expiry.
 
-**Be ready to explain:** why you fit total variance, what butterfly and calendar arbitrage mean, why SVI rather than a spline.
+**Design questions:** why fit total variance, what butterfly and calendar arbitrage mean, why SVI rather than a spline.
 
 ### 4. Dependency graph
 
@@ -204,7 +204,7 @@ $$
 
 **Done when:** bumping one underlying recomputes only its positions (assert recompute counts in tests); incremental against full revaluation is benchmarked; scenarios never change base values.
 
-**Be ready to explain:** invalidation versus recompute, what goes in a cache key, and why bank platforms such as SecDB and Athena are built this way.
+**Design questions:** invalidation versus recompute, what goes in a cache key, and why bank platforms such as SecDB and Athena are built this way.
 
 ### 5. Risk engine
 
@@ -220,7 +220,7 @@ $$
 
 **Done when:** unexplained is under 5% on normal days for the vanilla book, and large-move days are logged with the reason.
 
-**Be ready to explain:** why unexplained grows on big moves and what each cross term captures.
+**Design questions:** why unexplained grows on big moves and what each cross term captures.
 
 ### 6. Services and lineage
 
@@ -232,11 +232,11 @@ $$
 
 **Done when:** any past response can be reproduced from its lineage alone, and OpenAPI docs are generated.
 
-**Be ready to explain:** why lineage matters to model risk and audit, and how idempotency prevents double quotes.
+**Design questions:** why lineage matters to model risk and audit, and how idempotency prevents double quotes.
 
 ### 7. AI layer
 
-**Build:** an MCP server, your own agent harness, the RFQ copilot, term-sheet extraction, hybrid RAG and guardrails.
+**Build:** an MCP server, a hand-written agent harness, the RFQ copilot, term-sheet extraction, hybrid RAG and guardrails.
 
 - **MCP server** (official Python SDK) exposing tools over the API: `price_instrument`, `compute_greeks`, `run_scenario`, `pnl_explain`, `get_snapshot`, `search_termsheets`, `create_quote`. Every tool validates input with Pydantic and checks the caller's desk role.
 - **Agent harness:** plan, call a tool, observe, verify, answer. Step cap (about 8), timeouts, retries with backoff, a typed final-answer schema, and a full trace in Langfuse.
@@ -248,7 +248,7 @@ $$
 
 **Done when:** the eval thresholds in component 8 pass, and every quote in the database has an approval record.
 
-**Be ready to explain:** why the model never computes numbers, how you detect prompt injection, and how you decided the routing.
+**Design questions:** why the model never computes numbers, how prompt injection is detected, and how the routing was decided.
 
 ### 8. Evals
 
@@ -259,14 +259,14 @@ $$
 | `rfq_cases.jsonl` | 200 synthetic RFQs, varied phrasing, some with missing fields | Field accuracy, correct follow-up questions |
 | `termsheets/` | 50 to 100 hand-labelled public KIDs | Field accuracy per field |
 | `rag_questions.jsonl` | 100 questions with gold chunk ids | recall@10, MRR |
-| `answers_labelled.jsonl` | 50 answers you label by hand | LLM-judge agreement with you, faithfulness |
+| `answers_labelled.jsonl` | 50 hand-labelled answers | LLM-judge agreement with the human labels, faithfulness |
 | `agent_tasks.jsonl` | 50 tasks with expected tool calls and numbers | Task success, numeric grounding (must be 100%) |
 | `injection_cases/` | 30 documents with planted instructions | Successful injections (must be 0) |
 
 - A fast subset runs on every pull request and blocks the merge on a drop above 2%; the full suite runs nightly.
 - Results go to `evals/results/*.json` and a table in the README, with p95 latency and cost per query from Langfuse.
 
-**Be ready to explain:** how you built the labelled sets, and why you checked the LLM judge against your own labels.
+**Design questions:** how the labelled sets were built, and why the LLM judge is checked against human labels.
 
 ### 9. Observability, delivery and quality
 
@@ -274,48 +274,44 @@ $$
 - Docker Compose brings up the API, Postgres with pgvector and Langfuse in one command.
 - Terraform deploys to AWS: ECS Fargate for the API, RDS for Postgres, Secrets Manager for keys.
 - GitHub Actions runs ruff, mypy --strict, unit and property tests, the fast eval suite, and benchmarks with a regression threshold.
-- Write one ADR per major decision: ADRs themselves, a pure core, Monte Carlo design, snapshots and lineage, the dependency graph, SVI, your own harness against a framework, the number-check guardrail, model routing.
+- One ADR per major decision: ADRs themselves, a pure core, Monte Carlo design, snapshots and lineage, the dependency graph, SVI, a hand-written harness against a framework, the number-check guardrail, model routing.
 
 ## Build plan
 
-Build the pricing core first, then the AI copilot the team lead asked about, then data, volatility and risk, then polish. Each milestone ends with something you can demo and numbers you can put on the CV.
+Build the pricing core first, then the AI copilot, then data, volatility and risk, then polish. Each milestone ends with something that can be demoed and a set of measured results.
 
-| Milestone | Weeks | Build (component numbers above) | Done when | CV numbers it unlocks |
+| Milestone | Weeks | Build (component numbers above) | Done when | Metrics it produces |
 |---|---|---|---|---|
 | M1 Pricing core | 1 to 2 | 2, plus the CI skeleton and benchmarks | Every pricing test passes in CI; benchmark results saved as JSON | MC error against closed form, MC speed, loop against vectorised speedup |
 | M2 AI copilot | 3 to 5 | 6 (price, quote, approve endpoints), 7 (MCP, harness, RFQ copilot, guardrails), 8 (RFQ and agent evals), Langfuse | Eval table in the README; every quote has an approval record | RFQ accuracy, numeric grounding, task success, injection rate, p95 latency, cost per query |
 | M3 Data, vol and risk | 6 to 7 | 1, 3, 4, 5, plus term-sheet extraction and RAG | Recompute counts tested; SVI fits plotted; P&L explain runs on two real snapshots | SVI RMSE, incremental speedup, unexplained %, recall@10, extraction accuracy |
-| M4 Polish | 8 | 9: Terraform deploy, ADRs, README with diagram and results, demo GIF | A stranger can clone and run it from the README | None new |
+| M4 Polish | 8 | 9: Terraform deploy, ADRs, README with diagram and results, demo GIF | Anyone can clone and run it from the README | None new |
 | Stretch | Later | Kafka live risk, Dupire local vol, Ray batches, local model comparison | Optional | Optional |
 
-If the UBS round comes before week 8, demo M1 plus the RFQ copilot from M2.
+If time runs short, M1 plus the RFQ copilot from M2 is the minimum end-to-end demo.
 
-Target values for every metric are in *Document* <!-- TODO: link missing in the source PDF -->. Put a number on your CV only once you have measured it.
+Targets are set in each component's **Done when**. A metric goes in the README only once a script in the repo has produced it.
 
-## Building it with Claude Code
-
-Export this doc as Markdown into `docs/SPEC.md`, add the CLAUDE.md below, then work through the prompts one at a time.
+## Engineering practices
 
 ### Workflow for every task
 
-1. Plan first: ask Claude Code for a plan and agree it before any code.
+1. Plan first: agree the plan before any code.
 2. Tests first, then the implementation until they pass.
 3. Run ruff, mypy and pytest locally.
-4. Read every diff yourself before committing; you will be asked about any line.
+4. Review every diff line by line before committing.
 5. Small commits, one feature per branch and pull request, and CI green before merging.
 
-### Keep it yours
+### Ownership and traceability
 
-- Write the ADRs in your own words; Claude Code can draft, you edit.
-- After each component, explain it out loud for 10 minutes without notes. If you can't, don't move on.
-- Commit steadily across the weeks; a real history is evidence, one giant commit is a red flag.
-- Only put a metric on the CV if a script in the repo produced it.
+- ADRs are written by the project owner; Claude Code can draft them, and the owner edits.
+- A component is finished only when its design can be explained without notes; if not, revisit it before moving on.
+- Commit steadily in small, reviewable steps rather than in large batches.
+- Every reported metric must be reproducible by a script in the repo.
 
-### CLAUDE.md to paste into the repo root
+### Working with Claude Code
 
-See [`/CLAUDE.md`](../CLAUDE.md).
-
-### Starter prompts
+Conventions for Claude Code live in [`/CLAUDE.md`](../CLAUDE.md). Work through the prompts below one at a time.
 
 **M1 Pricing core**
 
@@ -339,9 +335,9 @@ See [`/CLAUDE.md`](../CLAUDE.md).
 
 **M4 Polish**
 
-12. "Write the Terraform for ECS and RDS, fill the README results table from the evals and benchmarks, and draft any missing ADRs for me to edit."
+12. "Write the Terraform for ECS and RDS, fill the README results table from the evals and benchmarks, and draft any missing ADRs for review."
 
-## Sources
+## References
 
 - [AI at BNP Paribas: Chat2Trade turns client RFQs from chat and email into structured requests](https://group.bnpparibas/en/news/ai-at-bnp-paribas-1-producing-reliable-quotes-faster-to-help-global-markets-clients-in-trading): a real precedent for the RFQ copilot.
 - [FIA, Nov 2026: Generative AI moves from experiment to execution in capital markets](https://www.fia.org/marketvoice/articles/generative-ai-moves-experiment-execution-capital-markets): banks keep agents at recommending actions, and find LLMs unreliable on numbers, which is why DeskGraph's numbers come only from tools.

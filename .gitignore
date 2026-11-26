@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.benchmarks/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Raw market data: large and re-creatable only on the day it was captured,
+# so back it up outside git. Copy chosen days into tests/fixtures/ to commit them.
+data/raw/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
