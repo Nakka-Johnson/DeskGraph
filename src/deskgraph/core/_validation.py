@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from enum import Enum
-from numbers import Real
+from numbers import Integral, Real
 
 
 def as_float(name: str, value: object) -> float:
@@ -38,6 +38,13 @@ def non_negative(name: str, value: object) -> float:
     if x < 0.0:
         raise ValueError(f"{name} must be >= 0, got {x}")
     return x
+
+
+def as_int(name: str, value: object) -> int:
+    """Return ``value`` as a Python int; rejects bool, floats and non-numbers."""
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise TypeError(f"{name} must be an integer, got {type(value).__name__}")
+    return int(value)
 
 
 def require_enum[E: Enum](name: str, value: object, enum_type: type[E]) -> E:

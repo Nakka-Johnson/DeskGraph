@@ -170,8 +170,10 @@ Core validation checks the payoff is well defined; stricter desk rules
 bool and non-numbers raise TypeError, bad values raise ValueError naming the field.
 
 Greeks            delta, gamma, vega, theta, rho   (units in WHEN_IN_DOUBT)
-MCConfig          n_paths > 0 (even if antithetic), seed, antithetic, control_variate
-MCResult          price, std_error, n_paths, seed
+MCConfig          n_paths (even if antithetic; >= 2 independent samples), seed >= 0,
+                  antithetic = True, control_variate = True (Europeans only),
+                  steps_per_year = 252
+MCResult          price, std_error (over pair means when antithetic), n_paths, seed
 ```
 
 **Autocallable payoff per unit notional** (Agreed, D-10). With observation
@@ -467,8 +469,8 @@ Eight weeks from 2026-11-26. Each milestone ends in a demo and measured results.
 | 1 | Project setup, purity check, CI skeleton | `m1/project-setup` | **Done** 2026-11-27 |
 | 2 | `market.py`, `instruments.py` (tests first) | `m1/market-instruments` | **Done** 2026-11-28 |
 | 3 | `black_scholes.py`: Hull, parity, analytic vs FD greeks | `m1/black-scholes` | **Done** 2026-11-28 |
-| 4 | `monte_carlo.py`: antithetic, control variate, barrier, autocallable | `m1/monte-carlo` | Next |
-| 5 | `greeks.py`: bumps with common random numbers | `m1/bump-greeks` | |
+| 4 | `monte_carlo.py`: antithetic, control variate, barrier, autocallable | `m1/monte-carlo` | **Done** 2026-11-28 |
+| 5 | `greeks.py`: bumps with common random numbers | `m1/bump-greeks` | Next |
 | 6 | Hypothesis properties, benchmarks to `benchmarks/results.json`, CI benchmark job | `m1/properties-benchmarks` | |
 
 ### M2 steps (planned)
@@ -553,6 +555,7 @@ Newest decisions at the bottom. Each big one also gets an ADR in `docs/adr/`.
 | P-16 | GitHub remote | Create the repo and push so CI runs | Now |
 | P-17 | Database migrations | Plain ordered SQL files, no migration library until needed | M2 step 3 |
 | P-18 | Where the rule "knock-in below autocall level" lives | Core allows `knock_in_level <= autocall_level` and `autocall_level >= 0`, because the SPEC's edge-case tests (autocall level 0, knock-in 0) must be priceable; RFQ validation enforces the strict desk rule. Built this way in M1 step 2; confirm | Now |
+| P-20 | Is a barrier (or daily knock-in) that spot has already crossed today counted as hit? | Yes: monitoring includes t = 0, so a down barrier above spot knocks in or out immediately. Built this way in M1 step 4; confirm | Now |
 | P-19 | Seasoned autocallables: notes priced after inception need a fixed initial spot and observation times that move as time passes | Add `initial_spot` (optional, defaults to spot at pricing) and an aging method when theta and P&L explain need it | M1 step 5 (theta) |
 
 When a proposal is confirmed, move it to the decision log with the date.
