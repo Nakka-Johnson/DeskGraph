@@ -113,8 +113,8 @@ never imports `data/`.
 | `core/instruments.py` | Product definitions and validation | `OptionType`, `European`, `BarrierType`, `Barrier`, `Monitoring`, `Autocallable` | M1 |
 | `core/results.py` | Shared result types | `Greeks(delta, gamma, vega, theta, rho)` | M1 |
 | `core/black_scholes.py` | Closed-form prices and greeks | `price(inst, mkt) -> float`, `price_vec(is_call, spot, strike, expiry, rate, div_yield, vol) -> array`, `greeks(inst, mkt) -> Greeks` (vectorised greeks added when the risk engine needs them, M3) | M1 |
-| `core/monte_carlo.py` | GBM paths, variance reduction, payoffs | `MCConfig`, `MCResult`, `price(inst, mkt, cfg) -> MCResult` | M1 |
-| `core/greeks.py` | Bump-and-revalue with common random numbers | `bump_greeks(inst, mkt, cfg) -> Greeks` | M1 |
+| `core/monte_carlo.py` | GBM paths, variance reduction, payoffs | `MCConfig`, `MCResult`, `price(inst, mkt, cfg) -> MCResult`, `price_samples(inst, mkt, cfg) -> array`, `summarise(samples, cfg) -> MCResult` | M1 |
+| `core/greeks.py` | Bump-and-revalue with common random numbers | `bump_greeks(inst, mkt, cfg) -> BumpGreeks` (greeks, their standard errors, base price) | M1 |
 | `core/vol/svi.py` | SVI fit per expiry, arbitrage checks, interpolation | `fit_svi(...)`, `butterfly_violations(...)`, `calendar_violations(...)`, `VolSurface` | M3 |
 | `data/chains.py` | Load raw captured chains, clean, implied vols | `load_raw_chain(ticker, date)`, `clean_chain(df)` | M3 |
 | `data/rates.py` | FRED loaders, rate curve construction | `load_rates(date)`, `build_curve(...)` | M3 |
@@ -163,10 +163,11 @@ Autocallable      expiry > 0
                   coupon >= 0            (per observation period, memory)
                   0 <= knock_in_level <= autocall_level
                   knock_in_monitoring: DAILY | AT_MATURITY
+                  initial_spot: None | > 0   (fixing S₀; None = struck today, D-21)
 
 Core validation checks the payoff is well defined; stricter desk rules
 (knock-in strictly below autocall, sensible tenors) live in RFQ validation
-(P-18). All numbers are coerced to finite floats, -0.0 normalised to 0.0;
+(D-19). All numbers are coerced to finite floats, -0.0 normalised to 0.0;
 bool and non-numbers raise TypeError, bad values raise ValueError naming the field.
 
 Greeks            delta, gamma, vega, theta, rho   (units in WHEN_IN_DOUBT)
@@ -174,10 +175,12 @@ MCConfig          n_paths (even if antithetic; >= 2 independent samples), seed >
                   antithetic = True, control_variate = True (Europeans only),
                   steps_per_year = 252
 MCResult          price, std_error (over pair means when antithetic), n_paths, seed
+BumpGreeks        value: Greeks, std_error: Greeks, price: MCResult   (D-22)
 ```
 
 **Autocallable payoff per unit notional** (Agreed, D-10). With observation
-times t₁ < … < tₙ = T, spot ratio Xᵢ = S(tᵢ)/S₀ and coupon c per period:
+times t₁ < … < tₙ = T, spot ratio Xᵢ = S(tᵢ)/S₀ with S₀ = `initial_spot` (today's
+spot for a note struck today) and coupon c per period:
 
 - first i with Xᵢ ≥ autocall level: pay (1 + i·c) at tᵢ, then stop;
 - never called: pay 1 at T if not knocked in; pay X(T) at T if knocked in, where
@@ -470,8 +473,8 @@ Eight weeks from 2026-11-26. Each milestone ends in a demo and measured results.
 | 2 | `market.py`, `instruments.py` (tests first) | `m1/market-instruments` | **Done** 2026-11-28 |
 | 3 | `black_scholes.py`: Hull, parity, analytic vs FD greeks | `m1/black-scholes` | **Done** 2026-11-28 |
 | 4 | `monte_carlo.py`: antithetic, control variate, barrier, autocallable | `m1/monte-carlo` | **Done** 2026-11-28 |
-| 5 | `greeks.py`: bumps with common random numbers | `m1/bump-greeks` | Next |
-| 6 | Hypothesis properties, benchmarks to `benchmarks/results.json`, CI benchmark job | `m1/properties-benchmarks` | |
+| 5 | `greeks.py`: bumps with common random numbers; `initial_spot` on autocallables | `m1/bump-greeks` | **Done** 2026-11-28 |
+| 6 | Hypothesis properties, benchmarks to `benchmarks/results.json`, CI benchmark job | `m1/properties-benchmarks` | Next |
 
 ### M2 steps (planned)
 
@@ -531,6 +534,10 @@ Newest decisions at the bottom. Each big one also gets an ADR in `docs/adr/`.
 | D-16 | Benchmarks in CI don't block merges at first | Shared runners give noisy timings | Hard threshold from day one | Agreed, 2026-11-27 |
 | D-17 | README written as the finished system, with a status table and results that stay empty until measured | One stable front page; no unmeasured numbers | Growing the README piece by piece | Agreed, 2026-11-27 |
 | D-18 | `scipy-stubs` as a dev dependency for typed scipy calls (was P-01) | Keeps `mypy --strict` meaningful in the maths code; dev-only, version matches scipy | Telling mypy to ignore scipy (leaves every scipy result untyped) | Agreed, 2026-11-28 |
+| D-19 | Core accepts `knock_in_level <= autocall_level` and `autocall_level >= 0`; RFQ validation enforces the strict desk rule "knock-in below autocall" (was P-18) | The SPEC's edge cases (autocall level 0, knock-in 0) must be priceable; desk rules belong at the RFQ boundary | Strict rule in core (edge cases unpriceable) | Agreed, 2026-11-28 |
+| D-20 | Barrier and daily knock-in monitoring includes today: a level spot has already crossed counts as hit (was P-20) | Matches the contract: monitoring starts on the trade date | Monitoring from the first step only | Agreed, 2026-11-28 |
+| D-21 | `Autocallable.initial_spot` is optional (None = struck today); bump greeks pin it to today's spot before bumping. Past path state of seasoned notes waits for M3 (P-19) | Without a fixed S₀ the levels move with spot and delta is exactly zero | Required `initial_spot`; full seasoning (knock-in flag, aging) in M1 | Agreed, 2026-11-28 |
+| D-22 | Every bump greek is returned with its standard error, computed per sample on common random numbers; core never hides or flags a value, the API and AI layers decide what is too noisy to show (was P-05) | Honest numbers with their uncertainty; one rule for all products | Dropping or flagging gamma for exotics in core | Agreed, 2026-11-28 |
 
 ---
 
@@ -541,7 +548,6 @@ Newest decisions at the bottom. Each big one also gets an ADR in `docs/adr/`.
 | P-02 | Eval gate: "block on a drop above 2%" is finer than a small fast suite can measure, and LLM output varies run to run | Threshold in number of cases (e.g. block on 2+ newly failing cases); replay recorded model responses on PRs; live run nightly | M2 step 1 |
 | P-03 | "Unexplained under 5%" is unstable when total P&L is near zero | Measure unexplained against gross P&L (sum of absolute explained terms), and report the absolute amount too | M3 step 5 |
 | P-04 | Number check would block numbers the user typed | Allow tool outputs, retrieved chunks and the user's own request; tolerate formatting and stated rounding | M2 step 5 |
-| P-05 | Bump gamma is noisy near barriers for barrier and autocallable, even with common random numbers | Report delta and vega for those products; gamma reported with its standard error and flagged | M1 step 5 |
 | P-06 | Self-hosted Langfuse v3 needs ClickHouse, Redis and blob storage | Use Langfuse Cloud free tier; keep a self-host profile optional | M2 step 5 |
 | P-07 | Copilot entry point | CLI chat (`python -m deskgraph.ai.chat --role …`) plus MCP for desktop clients; no web UI | M2 step 2 |
 | P-08 | Roles and tool allow-list | As in §1 and §8.1 | M2 step 4 |
@@ -554,9 +560,8 @@ Newest decisions at the bottom. Each big one also gets an ADR in `docs/adr/`.
 | P-15 | License | Choose before making the repo public (MIT is a common default for open-source code) | Before going public |
 | P-16 | GitHub remote | Create the repo and push so CI runs | Now |
 | P-17 | Database migrations | Plain ordered SQL files, no migration library until needed | M2 step 3 |
-| P-18 | Where the rule "knock-in below autocall level" lives | Core allows `knock_in_level <= autocall_level` and `autocall_level >= 0`, because the SPEC's edge-case tests (autocall level 0, knock-in 0) must be priceable; RFQ validation enforces the strict desk rule. Built this way in M1 step 2; confirm | Now |
-| P-20 | Is a barrier (or daily knock-in) that spot has already crossed today counted as hit? | Yes: monitoring includes t = 0, so a down barrier above spot knocks in or out immediately. Built this way in M1 step 4; confirm | Now |
-| P-19 | Seasoned autocallables: notes priced after inception need a fixed initial spot and observation times that move as time passes | Add `initial_spot` (optional, defaults to spot at pricing) and an aging method when theta and P&L explain need it | M1 step 5 (theta) |
+| P-19 | Past path state of seasoned autocallables: an earlier knock-in and observation dates already passed | Add a `knocked_in` flag and drop past observations when P&L explain ages positions between snapshots | M3 (P&L explain) |
+| P-21 | Bump sizes near limits: the time bump shrinks to half the time to the first date ahead (expiry or first observation) and the vol bump to half the vol, so no date moves into the past and vol stays positive | Built this way in M1 step 5; confirm | Now |
 
 When a proposal is confirmed, move it to the decision log with the date.
 
@@ -570,6 +575,6 @@ When a proposal is confirmed, move it to the decision log with the date.
 | Capture misses days (PC off) | Fewer P&L explain days | Task runs when available; any captured pair of consecutive days is enough for the demo |
 | Scope too big for eight weeks | Late or shallow milestones | Build order puts the end-to-end demo first; stretch items stay parked; P-12 trims labelling |
 | LLM output varies run to run | Flaky evals, noisy CI | Recorded responses on PRs; thresholds in cases; live nightly run |
-| MC noise in greeks for exotics | Unstable risk numbers | Common random numbers; standard errors reported; P-05 |
+| MC noise in greeks for exotics | Unstable risk numbers | Common random numbers; standard errors on every greek (D-22) |
 | AWS bills | Unexpected cost | Smallest instance sizes; destroy after demo; budget alarm |
 | Docs drift from the code | Confusion, wrong direction | Done checklist requires fixing docs in the same change; decision log is the tie-breaker |

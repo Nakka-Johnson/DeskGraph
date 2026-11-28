@@ -174,3 +174,24 @@ def test_spec_edge_cases_are_constructible() -> None:
 def test_knock_in_monitoring_must_be_the_enum() -> None:
     with pytest.raises(TypeError, match="knock_in_monitoring"):
         autocallable(knock_in_monitoring="daily")
+
+
+def test_initial_spot_defaults_to_none_meaning_struck_today() -> None:
+    assert autocallable().initial_spot is None
+
+
+def test_initial_spot_is_coerced_to_float() -> None:
+    note = autocallable(initial_spot=100)
+    assert note.initial_spot == 100.0
+    assert type(note.initial_spot) is float
+
+
+@pytest.mark.parametrize("value", [0.0, -100.0, math.inf])
+def test_bad_initial_spot_is_rejected(value: float) -> None:
+    with pytest.raises(ValueError, match="initial_spot"):
+        autocallable(initial_spot=value)
+
+
+def test_initial_spot_given_as_bool_is_rejected() -> None:
+    with pytest.raises(TypeError, match="initial_spot"):
+        autocallable(initial_spot=True)

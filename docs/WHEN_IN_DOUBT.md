@@ -133,7 +133,7 @@ code, in one change.
 | Time | Year fractions in M1. When dates arrive: ACT/365 for pricing |
 | Monte Carlo time step | Daily = 1/252 of a year (trading days) |
 | Vanilla and barrier strikes and barrier levels | Absolute prices (e.g. strike 720.0) |
-| Autocallable levels (autocall, knock-in) | Fractions of initial spot (e.g. 1.0, 0.6) |
+| Autocallable levels (autocall, knock-in) | Fractions of initial spot S₀ (e.g. 1.0, 0.6); S₀ = `initial_spot`, or spot at pricing when None (D-21) |
 | Vanilla price | Per one unit of underlying |
 | Autocallable price | Per unit notional (1.0 = par) |
 | Delta | Change in price per 1.00 move in spot |
@@ -141,7 +141,7 @@ code, in one change.
 | Vega | Per 1.00 change in vol (×0.01 for "per vol point") |
 | Theta | Per year (÷365 for "per calendar day") |
 | Rho | Per 1.00 change in rate (×0.0001 for "per bp") |
-| Bump sizes | Spot 1% relative, vol 1 point, rate 1 bp, time 1 day |
+| Bump sizes | Spot 1% relative, vol 1 point, rate 1 bp, time 1 day; time and vol bumps shrink to half the time to the first date ahead and half the vol when smaller (P-21) |
 | `snapshot_id` | `sha256:<hex>` of the canonical serialisation of the inputs |
 
 Every docstring that returns one of these states its unit.

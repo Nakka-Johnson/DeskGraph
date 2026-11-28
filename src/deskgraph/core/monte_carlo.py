@@ -118,18 +118,32 @@ class MCResult:
 
 def price(instrument: Instrument, market: MarketInputs, config: MCConfig) -> MCResult:
     """Price any supported instrument by Monte Carlo."""
+    return summarise(price_samples(instrument, market, config), config)
+
+
+def summarise(samples: FloatArray, config: MCConfig) -> MCResult:
+    """Mean and standard error of independent samples: SE = s / √n, s with ddof = 1."""
+    std_error = float(np.std(samples, ddof=1)) / math.sqrt(samples.size)
+    return MCResult(float(np.mean(samples)), std_error, config.n_paths, config.seed)
+
+
+def price_samples(instrument: Instrument, market: MarketInputs, config: MCConfig) -> FloatArray:
+    """Independent, identically distributed samples whose mean is the MC price.
+
+    One sample per path, or per antithetic pair (the pair mean). Sample k comes
+    from the same draws for any market and any instrument with the same time
+    grid, which is what lets bump greeks difference samples path by path.
+    """
     rng = np.random.default_rng(config.seed)
     match instrument:
         case European():
-            samples = _european(instrument, market, config, rng)
+            return _european(instrument, market, config, rng)
         case Barrier():
-            samples = _barrier(instrument, market, config, rng)
+            return _barrier(instrument, market, config, rng)
         case Autocallable():
-            samples = _autocallable(instrument, market, config, rng)
+            return _autocallable(instrument, market, config, rng)
         case _:
             assert_never(instrument)
-    std_error = float(np.std(samples, ddof=1)) / math.sqrt(samples.size)
-    return MCResult(float(np.mean(samples)), std_error, config.n_paths, config.seed)
 
 
 # --- products -------------------------------------------------------------------
@@ -180,17 +194,20 @@ def _autocallable(
 ) -> FloatArray:
     """Autocallable per unit notional; payoff rules in ``Autocallable``'s docstring.
 
-    Works with log X, where X = S/S₀. A level of 0 maps to −∞, so an autocall
-    level of 0 calls every path and a knock-in level of 0 never knocks in.
+    Works with log X, where X = S/S₀ starts at S/initial_spot (0 for a note
+    struck today). A level of 0 maps to −∞, so an autocall level of 0 calls
+    every path and a knock-in level of 0 never knocks in. Daily knock-in also
+    checks today's X (D-20); early redemption is only checked on observation dates.
     """
     log_autocall = _log_level(inst.autocall_level)
     log_knock_in = _log_level(inst.knock_in_level)
     daily = inst.knock_in_monitoring is Monitoring.DAILY
+    log_x0 = 0.0 if inst.initial_spot is None else math.log(mkt.spot / inst.initial_spot)
 
-    log_x = np.zeros(cfg.n_paths)
+    log_x = np.full(cfg.n_paths, log_x0)
     alive = np.ones(cfg.n_paths, dtype=bool)  # not yet called
     payoff = np.zeros(cfg.n_paths)
-    knocked = np.full(cfg.n_paths, daily and log_knock_in > 0.0)  # X = 1 today
+    knocked = np.full(cfg.n_paths, daily and log_x0 < log_knock_in)
 
     t_prev = 0.0
     for i, t_obs in enumerate(inst.observation_times, start=1):

@@ -121,7 +121,11 @@ class Autocallable:
       in, with no coupon. Knocked in means spot fell below knock_in_level on any
       trading day (``Monitoring.DAILY``) or at T only (``Monitoring.AT_MATURITY``).
 
-    S₀ is the spot at pricing time: M1 prices notes at inception.
+    S₀ is ``initial_spot``, the fixing on the strike date (decision D-21). When it
+    is None the note is struck today and S₀ is the spot at pricing time. Bump
+    greeks pin S₀ before bumping spot; otherwise the levels would move with spot
+    and delta would be zero. Past path state of a seasoned note (an earlier
+    knock-in, observation dates already passed) is not modelled yet (P-19).
 
     Attributes:
         expiry: maturity T in years, > 0.
@@ -132,6 +136,8 @@ class Autocallable:
         knock_in_level: knock-in level as a fraction of S₀, between 0 and
             ``autocall_level`` inclusive.
         knock_in_monitoring: daily or at maturity only.
+        initial_spot: fixing S₀ in spot units, > 0, or None for a note struck
+            at pricing time.
     """
 
     expiry: float
@@ -140,6 +146,7 @@ class Autocallable:
     coupon: float
     knock_in_level: float
     knock_in_monitoring: Monitoring
+    initial_spot: float | None = None
 
     def __post_init__(self) -> None:
         expiry = positive("expiry", self.expiry)
@@ -157,6 +164,8 @@ class Autocallable:
         object.__setattr__(self, "knock_in_level", knock_in)
         object.__setattr__(self, "coupon", non_negative("coupon", self.coupon))
         require_enum("knock_in_monitoring", self.knock_in_monitoring, Monitoring)
+        if self.initial_spot is not None:
+            object.__setattr__(self, "initial_spot", positive("initial_spot", self.initial_spot))
 
 
 Instrument = European | Barrier | Autocallable

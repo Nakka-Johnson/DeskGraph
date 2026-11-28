@@ -236,14 +236,21 @@ def test_coupons_accumulate_until_the_note_is_called() -> None:
 
 
 def single_observation_note_closed_form(
-    mkt: MarketInputs, expiry: float, autocall: float, knock_in: float, coupon: float
+    mkt: MarketInputs,
+    expiry: float,
+    autocall: float,
+    knock_in: float,
+    coupon: float,
+    initial_spot: float | None = None,
 ) -> float:
     """Black-Scholes value of a note observed only at maturity, knock-in at maturity.
 
     Payoff per unit notional with X = S_T/S₀:  1 + c·1{X ≥ A} − (1 − X)·1{X < KI}.
-    So value = DF·(1 + c·N(d₂(A·S₀))) − [DF·N(−d₂(KI·S₀)) − e^(−qT)·N(−d₁(KI·S₀))].
+    So value = DF·(1 + c·N(d₂(A·S₀))) − [DF·N(−d₂(KI·S₀)) − (S/S₀)·e^(−qT)·N(−d₁(KI·S₀))],
+    where S is today's spot and S₀ the initial fixing (S₀ = S for a note struck today).
     """
     s, r, q, v, t = mkt.spot, mkt.rate, mkt.div_yield, mkt.vol, expiry
+    s0 = s if initial_spot is None else initial_spot
 
     def d1(k: float) -> float:
         return (math.log(s / k) + (r - q + 0.5 * v * v) * t) / (v * math.sqrt(t))
@@ -252,8 +259,10 @@ def single_observation_note_closed_form(
         return d1(k) - v * math.sqrt(t)
 
     df, dq = math.exp(-r * t), math.exp(-q * t)
-    digital = df * (1.0 + coupon * float(ndtr(d2(autocall * s))))
-    knock_in_put = df * float(ndtr(-d2(knock_in * s))) - dq * float(ndtr(-d1(knock_in * s)))
+    digital = df * (1.0 + coupon * float(ndtr(d2(autocall * s0))))
+    knock_in_put = df * float(ndtr(-d2(knock_in * s0))) - (s / s0) * dq * float(
+        ndtr(-d1(knock_in * s0))
+    )
     return digital - knock_in_put
 
 
@@ -283,3 +292,56 @@ def test_higher_coupon_is_worth_more() -> None:
     low = mc.price(note(coupon=0.01), MKT, NOTE_CFG)
     high = mc.price(note(coupon=0.05), MKT, NOTE_CFG)
     assert high.price > low.price  # same seed and paths: only the coupon differs
+
+
+# --- seasoned notes: initial_spot fixed at inception (D-21) -------------------------
+
+
+def test_initial_spot_equal_to_spot_prices_like_a_note_struck_today() -> None:
+    fresh = mc.price(note(), MKT, NOTE_CFG)
+    pinned = mc.price(note(initial_spot=MKT.spot), MKT, NOTE_CFG)
+    assert pinned == fresh
+
+
+def test_note_price_depends_on_spot_once_the_initial_spot_is_fixed() -> None:
+    # Without a fixed S₀ the levels move with spot and the price cannot change.
+    low = mc.price(note(initial_spot=100.0), MarketInputs(95.0, 0.05, 0.02, 0.25), NOTE_CFG)
+    high = mc.price(note(initial_spot=100.0), MarketInputs(105.0, 0.05, 0.02, 0.25), NOTE_CFG)
+    assert high.price - low.price > 10 * math.hypot(low.std_error, high.std_error)
+
+
+@pytest.mark.parametrize("initial_spot", [90.0, 115.0])
+def test_seasoned_single_observation_note_within_3se_of_closed_form(initial_spot: float) -> None:
+    inst = note(observation_times=(1.0,), autocall_level=1.0, knock_in_level=0.7,
+                coupon=0.08, initial_spot=initial_spot)  # fmt: skip
+    expected = single_observation_note_closed_form(MKT, 1.0, 1.0, 0.7, 0.08, initial_spot)
+    assert_within_3se(mc.price(inst, MKT, NOTE_CFG), expected)
+
+
+def test_seasoned_note_above_its_autocall_level_is_called_on_the_first_date() -> None:
+    # Spot is 10% above the fixing; at (almost) zero vol X stays above 1.05.
+    mkt = MarketInputs(spot=110.0, rate=0.05, div_yield=0.02, vol=1e-9)
+    result = mc.price(note(autocall_level=1.05, initial_spot=100.0), mkt, NOTE_CFG)
+    assert result.price == pytest.approx(1.025 * mkt.discount_factor(0.25), rel=1e-9)
+
+
+@pytest.mark.parametrize(
+    ("monitoring", "knocked_in"), [(Monitoring.DAILY, True), (Monitoring.AT_MATURITY, False)]
+)
+def test_seasoned_note_already_below_its_knock_in_today(
+    monitoring: Monitoring, knocked_in: bool
+) -> None:
+    # X starts at 0.90, below KI = 0.92, and drifts up to 0.90·e^0.05 = 0.946 by T,
+    # never reaching the autocall level. Daily monitoring checks today too (D-20),
+    # so it knocks in and repays X(T)·DF = 0.90; at maturity X(T) > KI repays DF.
+    mkt = MarketInputs(spot=90.0, rate=0.05, div_yield=0.0, vol=1e-9)
+    inst = note(autocall_level=1.2, knock_in_level=0.92, knock_in_monitoring=monitoring,
+                initial_spot=100.0)  # fmt: skip
+    expected = 0.9 if knocked_in else mkt.discount_factor(1.0)
+    assert mc.price(inst, mkt, NOTE_CFG).price == pytest.approx(expected, rel=1e-9)
+
+
+def test_price_samples_average_to_the_price() -> None:
+    samples = mc.price_samples(note(), MKT, NOTE_CFG)
+    assert samples.shape == (NOTE_CFG.n_paths // 2,)  # antithetic pair means
+    assert float(np.mean(samples)) == mc.price(note(), MKT, NOTE_CFG).price
