@@ -423,7 +423,7 @@ deskgraph/
 
 | Milestone | Dates | Scope | State |
 |---|---|---|---|
-| M1 Pricing core | 2026-11-26 → 2026-12-09 | Black-Scholes, Monte Carlo, greeks, CI, benchmarks | **In progress**: project setup, CI, market inputs and instruments done; daily capture running |
+| M1 Pricing core | 2026-11-26 → 2026-12-09 | Black-Scholes, Monte Carlo, greeks, CI, benchmarks | **In progress**: project setup, CI, market inputs, instruments and Black-Scholes done; daily capture running |
 | M2 AI copilot | 2026-12-10 → 2026-12-30 | API, quotes and approval, MCP, harness, RFQ copilot, guardrails, evals | Not started |
 | M3 Data, vol and risk | 2026-12-31 → 2027-01-13 | Snapshots, SVI, dependency graph, risk, P&L explain, extraction, RAG | Not started |
 | M4 Polish | 2027-01-14 → 2027-01-20 | Docker, Terraform deploy, ADRs, results, demo | Not started |

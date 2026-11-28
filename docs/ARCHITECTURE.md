@@ -111,7 +111,8 @@ never imports `data/`.
 |---|---|---|---|
 | `core/market.py` | Market inputs; discounting | `MarketInputs(spot, rate, div_yield, vol)`, `.discount_factor(t)`, `.snapshot_id` | M1 |
 | `core/instruments.py` | Product definitions and validation | `OptionType`, `European`, `BarrierType`, `Barrier`, `Monitoring`, `Autocallable` | M1 |
-| `core/black_scholes.py` | Closed-form prices and greeks, vectorised | `price(inst, mkt) -> float`, `greeks(inst, mkt) -> Greeks` | M1 |
+| `core/results.py` | Shared result types | `Greeks(delta, gamma, vega, theta, rho)` | M1 |
+| `core/black_scholes.py` | Closed-form prices and greeks | `price(inst, mkt) -> float`, `price_vec(is_call, spot, strike, expiry, rate, div_yield, vol) -> array`, `greeks(inst, mkt) -> Greeks` (vectorised greeks added when the risk engine needs them, M3) | M1 |
 | `core/monte_carlo.py` | GBM paths, variance reduction, payoffs | `MCConfig`, `MCResult`, `price(inst, mkt, cfg) -> MCResult` | M1 |
 | `core/greeks.py` | Bump-and-revalue with common random numbers | `bump_greeks(inst, mkt, cfg) -> Greeks` | M1 |
 | `core/vol/svi.py` | SVI fit per expiry, arbitrage checks, interpolation | `fit_svi(...)`, `butterfly_violations(...)`, `calendar_violations(...)`, `VolSurface` | M3 |
@@ -465,8 +466,8 @@ Eight weeks from 2026-11-26. Each milestone ends in a demo and measured results.
 |---|---|---|---|
 | 1 | Project setup, purity check, CI skeleton | `m1/project-setup` | **Done** 2026-11-27 |
 | 2 | `market.py`, `instruments.py` (tests first) | `m1/market-instruments` | **Done** 2026-11-28 |
-| 3 | `black_scholes.py`: Hull, parity, analytic vs FD greeks | `m1/black-scholes` | Next |
-| 4 | `monte_carlo.py`: antithetic, control variate, barrier, autocallable | `m1/monte-carlo` | |
+| 3 | `black_scholes.py`: Hull, parity, analytic vs FD greeks | `m1/black-scholes` | **Done** 2026-11-28 |
+| 4 | `monte_carlo.py`: antithetic, control variate, barrier, autocallable | `m1/monte-carlo` | Next |
 | 5 | `greeks.py`: bumps with common random numbers | `m1/bump-greeks` | |
 | 6 | Hypothesis properties, benchmarks to `benchmarks/results.json`, CI benchmark job | `m1/properties-benchmarks` | |
 
@@ -527,6 +528,7 @@ Newest decisions at the bottom. Each big one also gets an ADR in `docs/adr/`.
 | D-15 | Ruff at 100 columns; pytest turns warnings into errors | Readable formulas; numerical warnings in pricing are bugs | 88 columns; ignoring warnings | Agreed, 2026-11-27 |
 | D-16 | Benchmarks in CI don't block merges at first | Shared runners give noisy timings | Hard threshold from day one | Agreed, 2026-11-27 |
 | D-17 | README written as the finished system, with a status table and results that stay empty until measured | One stable front page; no unmeasured numbers | Growing the README piece by piece | Agreed, 2026-11-27 |
+| D-18 | `scipy-stubs` as a dev dependency for typed scipy calls (was P-01) | Keeps `mypy --strict` meaningful in the maths code; dev-only, version matches scipy | Telling mypy to ignore scipy (leaves every scipy result untyped) | Agreed, 2026-11-28 |
 
 ---
 
@@ -534,7 +536,6 @@ Newest decisions at the bottom. Each big one also gets an ADR in `docs/adr/`.
 
 | ID | Question | Recommendation | Decide by |
 |---|---|---|---|
-| P-01 | scipy has no type information; `mypy --strict` rejects it | Add `scipy-stubs` as a dev dependency (typed calls) rather than ignoring scipy in mypy | M1 step 3 |
 | P-02 | Eval gate: "block on a drop above 2%" is finer than a small fast suite can measure, and LLM output varies run to run | Threshold in number of cases (e.g. block on 2+ newly failing cases); replay recorded model responses on PRs; live run nightly | M2 step 1 |
 | P-03 | "Unexplained under 5%" is unstable when total P&L is near zero | Measure unexplained against gross P&L (sum of absolute explained terms), and report the absolute amount too | M3 step 5 |
 | P-04 | Number check would block numbers the user typed | Allow tool outputs, retrieved chunks and the user's own request; tolerate formatting and stated rounding | M2 step 5 |
