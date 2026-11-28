@@ -85,6 +85,8 @@ deskgraph/
 ├── pyproject.toml             # uv, ruff, mypy --strict, pytest
 ├── docs/
 │   ├── SPEC.md                # this document
+│   ├── ARCHITECTURE.md        # blueprint, build plan, decision log
+│   ├── WHEN_IN_DOUBT.md       # rules, scope, conventions, done checklist
 │   └── adr/                   # one page per design decision
 ├── scripts/                   # operational scripts (daily chain capture)
 ├── src/deskgraph/
@@ -156,6 +158,11 @@ Each component lists what to build, the design choices that matter, the tests th
 - Control variate for Europeans: the discounted terminal spot, whose expectation is known exactly.
 - Barriers: step paths daily and keep a running knock flag, so memory is O(paths), not O(paths x steps).
 - Autocallable (per unit notional): on each observation date, redeem early with accumulated coupons if the underlying is at or above the autocall level; otherwise at maturity repay notional above the knock-in level, or take the underlying's loss below it.
+  - Coupons accumulate (memory) and are paid only on redemption by autocall; a note that is never called pays no coupon.
+  - The last observation date is maturity, so finishing at or above the autocall level counts as being called at maturity.
+  - Knock-in monitoring is a field on the instrument: daily, or at maturity only.
+  - Levels are fractions of the initial spot (for example 1.0 and 0.6); times are year fractions in M1, with calendars and day counts left to a later ADR.
+- Market inputs in M1: a frozen `MarketInputs` with spot, a flat continuously compounded rate behind `discount_factor(t)`, a flat dividend yield and a flat vol. Its `snapshot_id` is a hash of those fields, so lineage carries a real id from M2 onwards; the full `MarketSnapshot` (component 1) replaces it in M3.
 - Greeks by central bumps with common random numbers: every revaluation reuses the same seed, so the noise cancels.
 
 **Done when:**
@@ -187,7 +194,7 @@ g(k) = \left(1 - \frac{k\,w'}{2w}\right)^2 - \frac{w'^2}{4}\left(\frac{1}{w} + \
 $$
 
 - Calendar check: total variance must not fall as expiry rises at the same k.
-- In M1 the Monte Carlo uses the surface vol at each product's strike and expiry; Dupire local vol for autocallables is a stretch goal.
+- In M1 the Monte Carlo uses the flat vol in `MarketInputs`; from M3 it uses the surface vol at each product's strike and expiry. Dupire local vol for autocallables is a stretch goal.
 
 **Done when:** RMSE under 0.5 vol points per expiry on liquid strikes, zero violations after the fit (or each one flagged), and a plot of fit against market for each expiry.
 

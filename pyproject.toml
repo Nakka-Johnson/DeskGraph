@@ -1,0 +1,68 @@
+[project]
+name = "deskgraph"
+version = "0.1.0"
+description = "Front-office quant platform: pricing library, risk engine and an AI RFQ copilot."
+readme = "README.md"
+authors = [
+    { name = "Nakka Johnson", email = "sgnjohn1@liverpool.ac.uk" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.5",
+    "scipy>=1.18.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.10,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170.22",
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-benchmark>=5.3.1",
+    "ruff>=0.17.6",
+]
+
+# --- Lint and format -------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # import order
+    "UP",      # pyupgrade
+    "B",       # bugbear
+    "C4",      # comprehensions
+    "SIM",     # simplify
+    "PT",      # pytest style
+    "NPY",     # numpy (bans the legacy global RNG, among others)
+    "RUF",     # ruff-specific
+]
+# Greek letters and maths symbols are intentional in docstrings that state formulas.
+allowed-confusables = ["σ", "ρ", "ν", "×", "−", "–"]
+
+# --- Types -----------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+warn_unreachable = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+
+# --- Tests -----------------------------------------------------------------
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+# Numerical warnings (overflow, invalid value) are bugs in pricing code: fail on them.
+filterwarnings = ["error"]

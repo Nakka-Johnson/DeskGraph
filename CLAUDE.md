@@ -2,7 +2,17 @@
 
 ## What this is
 Derivatives pricing and risk platform with an AI RFQ copilot.
-Spec: docs/SPEC.md. Design decisions: docs/adr/.
+
+## Read before working
+- docs/WHEN_IN_DOUBT.md: rules that never bend, scope, conventions and units,
+  where code goes, done checklist. Check it whenever unsure.
+- docs/ARCHITECTURE.md: blueprint, build plan with step status, decision log,
+  open questions. Build only to Agreed decisions; never build on Proposed or
+  Open ones without asking.
+- docs/SPEC.md: requirements and "done when" per component.
+- docs/adr/: full record of major decisions.
+If documents disagree, the latest Agreed entry in the decision log wins; fix the
+other document in the same change. Record any new decision as Proposed and ask.
 
 ## Rules
 - src/deskgraph/core is a pure library: no I/O, no network, no globals.
