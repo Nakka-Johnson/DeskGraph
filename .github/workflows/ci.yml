@@ -41,5 +41,31 @@ jobs:
       - name: Pytest
         run: uv run pytest
 
-  # Benchmarks job lands with the first benchmark suite (M1 step 6). It will run
-  # without blocking merges at first, because shared runners give noisy timings.
+  # Speed and accuracy benchmarks. They don't block merges yet (decision D-16):
+  # shared runners give noisy timings. results.json is kept as a run artifact.
+  benchmarks:
+    name: Benchmarks (non-blocking)
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked --all-extras --dev
+
+      - name: Benchmarks
+        run: uv run pytest benchmarks --benchmark-only
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmarks/results.json
+          if-no-files-found: warn

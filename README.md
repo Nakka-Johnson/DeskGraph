@@ -327,7 +327,10 @@ What the tests guarantee:
   match finite differences.
 - Monte Carlo agrees with Black-Scholes within 3 standard errors; knock-in plus
   knock-out equals the vanilla; autocallable edge cases are exact.
-- Pricing laws hold for random inputs (Hypothesis): bounds, monotonicity in vol and spot.
+- Pricing laws hold for random inputs (Hypothesis): no-arbitrage bounds, parity,
+  monotonicity in vol, spot and strike, scaling, greek signs; and, path by path on
+  shared draws, knock-in plus knock-out equals the vanilla and notes stay within
+  their possible redemptions.
 - The core library does no I/O, reads no clock and keeps no global state (checked
   on every module).
 - Any API result can be reproduced exactly from its lineage.
@@ -362,10 +365,15 @@ named next to it. Empty cells haven't been measured yet.
 
 | Metric | Target | Result | Script |
 |---|---|---|---|
-| MC error vs Black-Scholes (European) | within 3 standard errors | | `benchmarks/` |
-| MC throughput at 1M paths | tracked | | `benchmarks/` |
-| Vectorised vs Python-loop speedup | tracked | | `benchmarks/` |
-| Incremental vs full revaluation speedup | tracked | | `benchmarks/` |
+| MC error vs Black-Scholes (European) | within 3 standard errors | max \|z\| = 0.77 over 6 cases at 100k paths; z = −2.33 at 1M paths, seed 1; over 30 seeds at 1M paths mean z +0.03, sd 0.94 (an honest standard error gives 0 and 1) | `benchmarks/test_pricing.py` |
+| MC throughput at 1M paths | tracked | 0.057 s, about 17M paths/s (European, antithetic + control variate) | `benchmarks/test_pricing.py` |
+| Vectorised vs Python-loop speedup | tracked | 510× (10,000 Black-Scholes prices) | `benchmarks/test_pricing.py` |
+| Daily-monitored paths, 100k × 1 year | tracked | barrier 0.30 s; autocallable 0.24 s; autocallable bump greeks (8 revaluations) 1.5 s | `benchmarks/test_pricing.py` |
+| Incremental vs full revaluation speedup | tracked | | `benchmarks/` (M3) |
+
+Timings are from one laptop (Windows 11, 16 logical CPUs, Python 3.12, numpy 2.5)
+and vary by roughly a third between runs; the full record, with the environment
+and git SHA, is in `benchmarks/results.json`.
 
 **Volatility and risk**
 
@@ -423,7 +431,7 @@ deskgraph/
 
 | Milestone | Dates | Scope | State |
 |---|---|---|---|
-| M1 Pricing core | 2026-11-26 → 2026-12-09 | Black-Scholes, Monte Carlo, greeks, CI, benchmarks | **In progress**: project setup, CI, market inputs, instruments, Black-Scholes, Monte Carlo and bump greeks done; daily capture running |
+| M1 Pricing core | 2026-11-26 → 2026-12-09 | Black-Scholes, Monte Carlo, greeks, CI, benchmarks | **Code complete** 2026-11-28: market inputs, instruments, Black-Scholes, Monte Carlo, bump greeks, property tests, benchmarks; CI defined and waiting for the GitHub remote; daily capture running |
 | M2 AI copilot | 2026-12-10 → 2026-12-30 | API, quotes and approval, MCP, harness, RFQ copilot, guardrails, evals | Not started |
 | M3 Data, vol and risk | 2026-12-31 → 2027-01-13 | Snapshots, SVI, dependency graph, risk, P&L explain, extraction, RAG | Not started |
 | M4 Polish | 2027-01-14 → 2027-01-20 | Docker, Terraform deploy, ADRs, results, demo | Not started |

@@ -428,7 +428,7 @@ Model IDs are configuration (`DESKGRAPH_MODEL_SMALL`, `DESKGRAPH_MODEL_LARGE`,
 | ruff lint + format check | Yes | Built |
 | mypy strict | Yes | Built |
 | pytest | Yes | Built |
-| benchmarks | No at first (noisy runners), threshold later | M1 step 6 |
+| benchmarks (`needs: check`, `continue-on-error`, uploads `results.json`) | No at first (noisy runners), threshold later (D-16) | Built |
 | fast eval suite | Yes, with the threshold rule in P-02 | M2 |
 | full eval suite | Nightly, reports only | M2 |
 
@@ -474,7 +474,7 @@ Eight weeks from 2026-11-26. Each milestone ends in a demo and measured results.
 | 3 | `black_scholes.py`: Hull, parity, analytic vs FD greeks | `m1/black-scholes` | **Done** 2026-11-28 |
 | 4 | `monte_carlo.py`: antithetic, control variate, barrier, autocallable | `m1/monte-carlo` | **Done** 2026-11-28 |
 | 5 | `greeks.py`: bumps with common random numbers; `initial_spot` on autocallables | `m1/bump-greeks` | **Done** 2026-11-28 |
-| 6 | Hypothesis properties, benchmarks to `benchmarks/results.json`, CI benchmark job | `m1/properties-benchmarks` | Next |
+| 6 | Hypothesis properties, benchmarks to `benchmarks/results.json`, CI benchmark job | `m1/properties-benchmarks` | **Done** 2026-11-28 |
 
 ### M2 steps (planned)
 

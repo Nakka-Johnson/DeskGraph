@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-11-28T19:08:22+00:00",
+  "environment": {
+    "deskgraph": "0.1.0",
+    "git_sha": "31924f37180cc1ce69d9953b6ce589a77d05fbd7",
+    "git_dirty": true,
+    "python": "3.12.10",
+    "numpy": "2.5.5",
+    "scipy": "1.18.1",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "machine": "AMD64",
+    "cpu_count": 16
+  },
+  "metrics": {
+    "black_scholes_vectorised_vs_loop": {
+      "n_options": 10000,
+      "loop_seconds": 0.37736580008640885,
+      "vectorised_seconds": 0.0007398999878205359,
+      "speedup": 510.022714283298,
+      "max_abs_price_difference": 0.0
+    },
+    "bump_greeks_autocallable_100k_paths": {
+      "seconds": 1.538554499973543,
+      "revaluations": 8,
+      "delta": 0.0025187365533533655,
+      "delta_std_error": 5.273733160880584e-05,
+      "vega": -0.30119097754351615,
+      "vega_std_error": 0.006493040609463912
+    },
+    "mc_autocallable_daily_ki_100k_paths_1y": {
+      "seconds": 0.23702720005530864,
+      "price": 0.986358115601447,
+      "std_error": 0.00025759487436693746
+    },
+    "mc_barrier_daily_100k_paths_1y": {
+      "seconds": 0.2988310999935493,
+      "path_steps_per_second": 84328572.22874051,
+      "price": 10.145838614638699,
+      "std_error": 0.04529984615269023
+    },
+    "mc_european_1m_paths": {
+      "seed": 1,
+      "seconds": 0.057180400006473064,
+      "paths_per_second": 17488510.0469181,
+      "price": 11.115451928610739,
+      "std_error": 0.003561352111362028,
+      "black_scholes": 11.123761928058123,
+      "z": -2.333383273412399
+    },
+    "mc_european_seed_sweep": {
+      "seeds": 30,
+      "n_paths": 1000000,
+      "mean_z": 0.030439854985762294,
+      "sd_z": 0.9435058519888191,
+      "max_abs_z": 2.333383273412399
+    },
+    "mc_vs_black_scholes": {
+      "cases": 6,
+      "n_paths": 100000,
+      "z_scores": [
+        0.3118534503177407,
+        -0.58278653674355,
+        0.7724464702900004,
+        0.3118534503172642,
+        -0.5827865367484834,
+        0.7724464702904608
+      ],
+      "max_abs_z": 0.7724464702904608,
+      "within_3se": true
+    }
+  }
+}
